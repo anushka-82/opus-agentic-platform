@@ -10,7 +10,7 @@ import {
 } from './services/geminiService';
 import { fetchRecentEmails } from './services/gmailService';
 import { streamService } from './services/streamService';
-import { Plus, Play, RotateCcw, FileText, Check, Bot, AlertTriangle, Inbox, Sun, Moon, Search, Sliders, Trash2, Link2, MessageSquare, Mail, Wifi, X, Loader2, Sparkles, Upload, FileSearch, Send, Paperclip, Download, Share2, Copy, Terminal, Activity } from 'lucide-react';
+import { Plus, Play, RotateCcw, FileText, Check, Bot, AlertTriangle, Inbox, Sun, Moon, Sliders, Trash2, Link2, MessageSquare, Mail, Wifi, X, Loader2, Sparkles, Upload, FileSearch, Send, Download, Share2, Terminal, Activity, CheckCircle } from 'lucide-react';
 
 declare const google: any;
 
@@ -617,6 +617,182 @@ export default function App() {
     </div>
   );
 
+  const renderInbox = () => {
+    const selectedTask = tasks.find(t => t.id === selectedTaskId);
+
+    return (
+      <div className="flex h-full">
+        {/* Task List Panel */}
+        <div className="w-1/3 border-r border-ops-border flex flex-col bg-ops-bg/50">
+          <div className="p-4 border-b border-ops-border flex justify-between items-center">
+             <div className="flex items-center gap-2">
+               <div className="bg-ops-accent/10 p-2 rounded-lg text-ops-accent">
+                 <Inbox size={18} />
+               </div>
+               <span className="font-semibold text-sm text-ops-text">Incoming Signal</span>
+             </div>
+             <button 
+               onClick={openDispatchModal}
+               className="p-2 hover:bg-ops-bg rounded-lg text-ops-muted hover:text-ops-text transition-colors"
+               title="Manual Dispatch (Simulate Event)"
+             >
+               <Plus size={18} />
+             </button>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {tasks.length === 0 ? (
+               <div className="p-8 text-center text-ops-muted text-sm">
+                 No active tasks. 
+                 <br />
+                 Connect an integration or use <Plus size={14} className="inline" /> to add one manually.
+               </div>
+            ) : (
+               <div className="divide-y divide-ops-border">
+                 {tasks.map(task => (
+                   <div 
+                     key={task.id}
+                     onClick={() => setSelectedTaskId(task.id)}
+                     className={`p-4 cursor-pointer hover:bg-ops-card/50 transition-colors ${selectedTaskId === task.id ? 'bg-ops-card border-l-4 border-l-ops-accent' : 'border-l-4 border-l-transparent'}`}
+                   >
+                     <div className="flex justify-between items-start mb-1">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          task.source === 'SLACK' ? 'bg-purple-500/10 text-purple-500' :
+                          task.source === 'GMAIL' ? 'bg-red-500/10 text-red-500' : 'bg-slate-500/10 text-ops-text'
+                        }`}>
+                          {task.source}
+                        </span>
+                        <span className="text-[10px] text-ops-muted">{new Date(task.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                     </div>
+                     <h4 className="text-sm font-medium text-ops-text line-clamp-2 mb-1">{task.summary || task.rawContent}</h4>
+                     <div className="flex justify-between items-center">
+                        <span className="text-xs text-ops-muted">{task.sender}</span>
+                        <span className={`w-2 h-2 rounded-full ${
+                          task.status === TaskStatus.COMPLETED ? 'bg-emerald-500' : 
+                          task.status === TaskStatus.PROCESSING ? 'bg-blue-500 animate-pulse' : 
+                          task.status === TaskStatus.FAILED ? 'bg-red-500' : 'bg-slate-500'
+                        }`}></span>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Task Detail Panel */}
+        <div className="flex-1 flex flex-col bg-ops-bg min-w-0">
+           {selectedTask ? (
+             <>
+               {/* Detail Header */}
+               <div className="p-6 border-b border-ops-border bg-ops-card shadow-sm z-10">
+                 <div className="flex justify-between items-start mb-4">
+                   <div>
+                     <h2 className="text-xl font-bold text-ops-text mb-1">{selectedTask.summary || "New Task"}</h2>
+                     <div className="flex items-center gap-3 text-sm text-ops-muted">
+                        <span className="flex items-center gap-1"><CheckCircle size={14} /> ID: {selectedTask.id}</span>
+                        <span className="w-1 h-1 bg-ops-muted rounded-full"></span>
+                        <span>From: {selectedTask.sender}</span>
+                     </div>
+                   </div>
+                   
+                   <div className="flex gap-2">
+                      {selectedTask.status === TaskStatus.PENDING && (
+                        <button 
+                          onClick={() => processTask(selectedTask.id)}
+                          disabled={isProcessing}
+                          className="flex items-center gap-2 bg-ops-accent hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <Play size={16} />}
+                          Auto-Execute
+                        </button>
+                      )}
+                      
+                      {selectedTask.status === TaskStatus.COMPLETED && selectedTask.outputContent && (
+                        <div className="flex gap-2">
+                           <button 
+                             onClick={() => handleDownload(selectedTask)}
+                             className="flex items-center gap-2 bg-ops-bg border border-ops-border hover:bg-ops-border text-ops-text px-3 py-2 rounded-lg text-sm transition-colors"
+                           >
+                             <Download size={16} /> Download
+                           </button>
+                           <button 
+                             onClick={() => handleDispatch(selectedTask)}
+                             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-medium shadow-lg shadow-emerald-500/20 transition-all"
+                           >
+                             <Send size={16} /> Dispatch
+                           </button>
+                        </div>
+                      )}
+
+                       {selectedTask.status === TaskStatus.COMPLETED && !selectedTask.outputContent && (
+                           <div className="px-3 py-2 bg-emerald-500/10 text-emerald-500 rounded-lg text-sm font-medium border border-emerald-500/20 flex items-center gap-2">
+                             <CheckCircle size={16} /> Action Completed
+                           </div>
+                       )}
+                   </div>
+                 </div>
+
+                 {/* Tags / Metadata */}
+                 <div className="flex flex-wrap gap-2 mb-4">
+                    {selectedTask.type && (
+                      <span className="px-2 py-1 bg-ops-bg border border-ops-border rounded text-xs font-mono text-ops-muted">Type: {selectedTask.type}</span>
+                    )}
+                    {selectedTask.priority && (
+                      <span className={`px-2 py-1 rounded text-xs font-bold border ${
+                        selectedTask.priority === TaskPriority.HIGH ? 'bg-red-500/10 text-red-500 border-red-500/20' : 
+                        selectedTask.priority === TaskPriority.MEDIUM ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' : 
+                        'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                      }`}>
+                        Priority: {selectedTask.priority}
+                      </span>
+                    )}
+                    {selectedTask.entities?.map((entity, i) => (
+                      <span key={i} className="px-2 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded text-xs">
+                        @{entity}
+                      </span>
+                    ))}
+                 </div>
+                 
+                 {/* Raw Content Box */}
+                 <div className="bg-ops-bg p-3 rounded-lg border border-ops-border text-sm text-ops-text font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
+                    {selectedTask.rawContent}
+                 </div>
+               </div>
+
+               {/* Agent Logs & Output Section */}
+               <div className="flex-1 overflow-hidden flex flex-col p-6 gap-6">
+                  {selectedTask.outputContent && (
+                    <div className="flex-1 flex flex-col min-h-[200px]">
+                      <h3 className="text-sm font-bold text-ops-muted uppercase mb-3 flex items-center gap-2">
+                        <FileText size={16} /> Generated Output ({selectedTask.outputType})
+                      </h3>
+                      <div className="flex-1 bg-white text-black p-6 rounded-xl shadow-inner overflow-y-auto border border-ops-border prose prose-sm max-w-none">
+                         <pre className="whitespace-pre-wrap font-sans">{selectedTask.outputContent}</pre>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className={`flex-1 flex flex-col min-h-[200px] ${selectedTask.outputContent ? 'h-1/3' : 'h-full'}`}>
+                     <h3 className="text-sm font-bold text-ops-muted uppercase mb-3 flex items-center gap-2">
+                       <Activity size={16} /> Agent Neural Activity
+                     </h3>
+                     {/* AgentLogs usage */}
+                     <AgentLogs logs={logs} />
+                  </div>
+               </div>
+             </>
+           ) : (
+             <div className="flex flex-col items-center justify-center h-full text-ops-muted opacity-50">
+               <Inbox size={64} className="mb-6" />
+               <p className="text-lg">Select a task to view details</p>
+             </div>
+           )}
+        </div>
+      </div>
+    );
+  };
+
   const renderAnalysis = () => (
     <div className="flex h-full">
       {/* Sidebar / Upload Area */}
@@ -745,134 +921,462 @@ export default function App() {
     </div>
   );
 
-  const renderDocuments = () => (
+  const renderDocuments = () => {
+    const documents = tasks.filter(t => t.status === TaskStatus.COMPLETED && t.outputContent);
+
+    return (
+      <div className="p-6 h-full overflow-y-auto bg-ops-bg">
+        <h2 className="text-2xl font-bold text-ops-text mb-6 flex items-center gap-2">
+          <FileText className="text-ops-accent" /> Knowledge Base
+        </h2>
+        
+        {documents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-96 text-ops-muted border-2 border-dashed border-ops-border rounded-xl">
+             <FileText size={48} className="opacity-20 mb-4" />
+             <p>No generated documents yet.</p>
+             <p className="text-sm mt-2 text-center max-w-md">
+                Go to <strong>Mission Control</strong>, select a task, and click <strong>Auto-Execute</strong>.
+                <br/>
+                Successfully generated outputs (PRDs, Emails) will appear here.
+             </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {documents.map(doc => (
+              <div key={doc.id} className="bg-ops-card border border-ops-border rounded-xl p-6 hover:shadow-lg transition-all group flex flex-col">
+                <div className="flex justify-between items-start mb-4">
+                  <div className={`p-2 rounded-lg ${
+                    doc.outputType === 'PRD' ? 'bg-purple-500/10 text-purple-500' : 
+                    doc.outputType === 'EMAIL' ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'
+                  }`}>
+                    <FileText size={24} />
+                  </div>
+                  <span className="text-xs text-ops-muted">{new Date(doc.timestamp).toLocaleDateString()}</span>
+                </div>
+                <h3 className="font-semibold text-ops-text mb-2 line-clamp-1">{doc.summary || "Untitled Document"}</h3>
+                <p className="text-sm text-ops-muted line-clamp-3 mb-4 flex-1">
+                   {doc.outputContent}
+                </p>
+                <div className="flex items-center justify-between mt-auto pt-4 border-t border-ops-border">
+                  <button 
+                    onClick={() => handleDownload(doc)}
+                    className="p-2 text-ops-muted hover:text-ops-text hover:bg-ops-bg rounded transition-colors"
+                    title="Download as Word"
+                  >
+                    <Download size={16} />
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setActiveTab('inbox');
+                      setSelectedTaskId(doc.id);
+                    }}
+                    className="text-sm text-ops-accent hover:underline"
+                  >
+                    View Source
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderIntegrations = () => (
     <div className="p-6 h-full overflow-y-auto bg-ops-bg">
       <h2 className="text-2xl font-bold text-ops-text mb-6 flex items-center gap-2">
-        <FileText className="text-ops-accent" /> Knowledge Base
+        <Link2 className="text-ops-accent" /> Connectors
       </h2>
-      
-      <div className="flex flex-col items-center justify-center h-[60vh] text-ops-muted border-2 border-dashed border-ops-border rounded-xl bg-ops-card/50">
-         <FileText size={64} className="mb-6 opacity-20" />
-         <h3 className="text-lg font-medium text-ops-text mb-2">Knowledge Repository</h3>
-         <p className="max-w-md text-center mb-6">
-           This centralized knowledge base will store indexed PRDs, meeting notes, and technical specifications for RAG (Retrieval-Augmented Generation).
-         </p>
-         <button className="px-4 py-2 bg-ops-bg border border-ops-border rounded-lg text-sm font-medium text-ops-text hover:bg-ops-border transition-colors cursor-not-allowed opacity-70">
-           Connect Confluence / Google Drive
-         </button>
+      <p className="text-ops-muted mb-8 max-w-2xl">
+        Connect your external tools to enable the OpsPilot real-time event stream. 
+        When enabled, the system will simulate incoming traffic from these sources.
+      </p>
+
+      {/* WARNING BANNER FOR GMAIL AUTH */}
+      {!gmailClientId && (
+        <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-start gap-3">
+          <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" />
+          <div>
+            <h4 className="font-bold text-yellow-500 text-sm">Gmail API Configuration Missing</h4>
+            <p className="text-xs text-ops-muted mt-1">
+              To use real Gmail data, please configure your <strong>Gmail Client ID</strong> in the <button onClick={() => setActiveTab('settings')} className="text-ops-accent hover:underline">Settings</button> tab.
+            </p>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {integrations.map((integration) => {
+          const Icon = integration.id === 'slack' ? MessageSquare : integration.id === 'gmail' ? Mail : FileText;
+          const color = integration.id === 'slack' ? 'text-purple-500' : integration.id === 'gmail' ? 'text-red-500' : 'text-black dark:text-white';
+          
+          return (
+            <div key={integration.id} className={`bg-ops-card border ${integration.isConnected ? 'border-ops-accent ring-1 ring-ops-accent/50' : 'border-ops-border'} rounded-xl p-6 transition-all shadow-sm hover:shadow-md relative overflow-hidden`}>
+              {integration.isConnected && (
+                <div className="absolute top-0 right-0 p-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-start mb-4">
+                 <div className={`p-3 rounded-xl bg-ops-bg border border-ops-border ${color}`}>
+                   <Icon size={28} />
+                 </div>
+                 <div className={`px-2 py-1 rounded text-xs font-bold uppercase tracking-wider ${integration.isConnected ? 'bg-emerald-500/10 text-emerald-500' : 'bg-ops-bg text-ops-muted'}`}>
+                   {integration.isConnected ? 'Active' : 'Offline'}
+                 </div>
+              </div>
+              <h3 className="text-lg font-bold text-ops-text mb-2">{integration.name}</h3>
+              <p className="text-sm text-ops-muted h-10 mb-2">{integration.description}</p>
+              
+              {integration.isConnected && integration.connectedAccount && (
+                <p className="text-xs text-emerald-500 font-mono mb-4 flex items-center gap-1">
+                  <Check size={12} /> Connected as {integration.connectedAccount}
+                </p>
+              )}
+
+              {/* Auto Summarize Toggle */}
+              {integration.isConnected && (
+                <div className="flex items-center justify-between mb-4 bg-ops-bg border border-ops-border p-3 rounded-lg">
+                  <div className="flex flex-col">
+                     <span className="text-xs font-medium text-ops-text flex items-center gap-1">
+                       <Sparkles size={10} className={integration.autoSummarize ? "text-purple-500" : "text-ops-muted"} />
+                       Auto-Summarize
+                     </span>
+                     <span className="text-[10px] text-ops-muted">AI processes incoming {integration.id === 'gmail' ? 'emails' : 'events'}</span>
+                  </div>
+                  <button 
+                    onClick={() => toggleAutoSummarize(integration.id)}
+                    className={`w-9 h-5 rounded-full p-0.5 transition-colors relative ${integration.autoSummarize ? 'bg-purple-500' : 'bg-slate-600'}`}
+                  >
+                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out ${integration.autoSummarize ? 'translate-x-4' : ''}`} />
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={() => handleConnectClick(integration.id)}
+                className={`w-full py-2.5 rounded-lg text-sm font-medium transition-all ${
+                   integration.isConnected 
+                   ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20' 
+                   : 'bg-ops-text text-ops-bg hover:opacity-90'
+                }`}
+              >
+                {integration.isConnected ? 'Disconnect' : 'Connect Account'}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 
-  const renderInbox = () => {
-    const selectedTask = tasks.find(t => t.id === selectedTaskId);
-    return (
-      <div className="flex h-full overflow-hidden">
-        {/* Task List */}
-        <div className="w-1/3 border-r border-ops-border flex flex-col bg-ops-bg/50 overflow-hidden">
-          <div className="p-4 border-b border-ops-border flex justify-between items-center bg-ops-card">
-            <h2 className="font-semibold text-ops-text">Incoming Signals</h2>
-            <button 
-              onClick={openDispatchModal}
-              className="p-1.5 rounded bg-blue-600 text-white hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/20"
-              title="Manually Dispatch Event (Simulate Incoming)"
-            >
-              <Plus size={16} />
-            </button>
+  const renderSettings = () => (
+    <div className="p-6 max-w-4xl mx-auto h-full overflow-y-auto">
+      <h2 className="text-2xl font-bold text-ops-text mb-8 flex items-center gap-2">
+        <Sliders className="text-ops-accent" /> Settings
+      </h2>
+
+      <div className="space-y-6">
+        {/* Appearance */}
+        <section className="bg-ops-card border border-ops-border rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-ops-text mb-4">Appearance</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-ops-text">Interface Theme</p>
+              <p className="text-sm text-ops-muted">Select your preferred color scheme.</p>
+            </div>
+            <div className="bg-ops-bg p-1 rounded-lg border border-ops-border flex">
+              <button 
+                onClick={() => setTheme('light')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${theme === 'light' ? 'bg-white shadow text-black' : 'text-ops-muted hover:text-ops-text'}`}
+              >
+                <Sun size={16} /> Light
+              </button>
+              <button 
+                onClick={() => setTheme('dark')}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors ${theme === 'dark' ? 'bg-slate-700 shadow text-white' : 'text-ops-muted hover:text-ops-text'}`}
+              >
+                <Moon size={16} /> Dark
+              </button>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto">
-            {tasks.length === 0 ? (
-               <div className="p-8 text-center text-ops-muted text-sm flex flex-col items-center gap-2">
-                 <Inbox className="opacity-20" size={40} />
-                 No active tasks. <br/> Click '+' to dispatch a new event.
-               </div>
-            ) : (
-              tasks.map(task => (
-                <div 
-                  key={task.id}
-                  onClick={() => setSelectedTaskId(task.id)}
-                  className={`p-4 border-b border-ops-border cursor-pointer hover:bg-ops-card transition-colors ${
-                    selectedTaskId === task.id ? 'bg-ops-card border-l-4 border-l-ops-accent' : ''
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                      task.source === 'SLACK' ? 'bg-[#4A154B] text-white' : 
-                      task.source === 'GMAIL' ? 'bg-red-500 text-white' : 'bg-black text-white border border-slate-700'
-                    }`}>
-                      {task.source}
-                    </span>
-                    <span className="text-xs text-ops-muted">{new Date(task.timestamp).toLocaleTimeString()}</span>
-                  </div>
-                  <h4 className="text-sm font-medium text-ops-text line-clamp-1 mb-1">
-                    {task.summary || "New Incoming Message"}
-                  </h4>
-                  <p className="text-xs text-ops-muted line-clamp-2">
-                    {task.rawContent}
-                  </p>
-                  <div className="mt-2 flex items-center justify-between">
-                     <span className={`text-[10px] px-2 py-0.5 rounded-full border ${
-                       task.status === TaskStatus.COMPLETED ? 'border-emerald-500/30 text-emerald-500 bg-emerald-500/10' :
-                       task.status === TaskStatus.PROCESSING ? 'border-blue-500/30 text-blue-500 bg-blue-500/10' :
-                       'border-ops-border text-ops-muted'
-                     }`}>
-                       {task.status}
+        </section>
+
+        {/* Data Management */}
+        <section className="bg-ops-card border border-ops-border rounded-xl p-6">
+          <h3 className="text-lg font-semibold text-ops-text mb-4">Data Management</h3>
+          <div className="flex items-center justify-between">
+             <div>
+               <p className="font-medium text-ops-text">Clear Session Data</p>
+               <p className="text-sm text-ops-muted">Remove all tasks, logs, and generated documents.</p>
+             </div>
+             <button 
+               onClick={clearHistory}
+               className="flex items-center gap-2 px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors"
+             >
+               <Trash2 size={16} /> Clear All
+             </button>
+          </div>
+        </section>
+
+        {/* API Configuration */}
+        <section className="bg-ops-card border border-ops-border rounded-xl p-6">
+           <h3 className="text-lg font-semibold text-ops-text mb-4">API Configuration</h3>
+           <div className="space-y-4">
+             <div>
+                <label className="block text-sm font-medium text-ops-text mb-1">Google GenAI API Key</label>
+                <div className="flex gap-2">
+                   <input 
+                     type="password" 
+                     value={process.env.API_KEY ? "sk-xxxxxxxxxxxxxxxxxxxxxxxx" : ""}
+                     disabled
+                     className="flex-1 bg-ops-bg border border-ops-border rounded-lg px-3 py-2 text-ops-muted font-mono text-sm"
+                     placeholder="Not configured"
+                   />
+                   {process.env.API_KEY ? (
+                     <span className="flex items-center gap-1 text-emerald-500 text-sm font-medium px-2">
+                       <Check size={16} /> Active
                      </span>
-                  </div>
+                   ) : (
+                     <span className="flex items-center gap-1 text-red-500 text-sm font-medium px-2">
+                       <AlertTriangle size={16} /> Missing
+                     </span>
+                   )}
                 </div>
-              ))
-            )}
+                <p className="text-xs text-ops-muted mt-2">
+                  Key is injected via environment variables. To change it, update your environment configuration.
+                </p>
+             </div>
+
+             <div>
+                <label className="block text-sm font-medium text-ops-text mb-1">Gmail Client ID</label>
+                <div className="flex gap-2">
+                   <input 
+                     type="text" 
+                     value={gmailClientId}
+                     onChange={(e) => setGmailClientId(e.target.value)}
+                     className="flex-1 bg-ops-bg border border-ops-border rounded-lg px-3 py-2 text-ops-text font-mono text-sm focus:ring-2 focus:ring-ops-accent outline-none"
+                     placeholder="xxxxxxxx-xxxxxxxx.apps.googleusercontent.com"
+                   />
+                   {gmailClientId ? (
+                     <span className="flex items-center gap-1 text-emerald-500 text-sm font-medium px-2">
+                       <Check size={16} /> Configured
+                     </span>
+                   ) : (
+                     <span className="flex items-center gap-1 text-yellow-500 text-sm font-medium px-2">
+                       <AlertTriangle size={16} /> Missing
+                     </span>
+                   )}
+                </div>
+                <p className="text-xs text-ops-muted mt-2">
+                  Paste your Google Cloud OAuth Client ID here.
+                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer" className="text-ops-accent hover:underline ml-1">
+                    Create one in Google Cloud Console
+                  </a>
+                  (Enable Gmail API, create OAuth 2.0 Client ID for Web App).
+                </p>
+             </div>
+           </div>
+        </section>
+      </div>
+    </div>
+  );
+
+  return (
+    // UPDATED: Changed from flex h-screen to flex flex-col md:flex-row h-screen
+    // This enables the Sidebar to be a horizontal bar on mobile and vertical sidebar on desktop
+    <div className="flex flex-col md:flex-row h-screen bg-ops-bg text-ops-text font-sans overflow-hidden transition-colors duration-300 relative">
+      {/* Auth Modal Overlay */}
+      {authModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-ops-card border border-ops-border rounded-xl w-full max-w-md p-6 shadow-2xl scale-100 transition-transform">
+            <div className="flex justify-between items-center mb-6">
+               <h3 className="text-xl font-bold text-ops-text flex items-center gap-2">
+                 {authModal.integrationId === 'gmail' && <Mail className="text-red-500" />}
+                 {authModal.integrationId === 'slack' && <MessageSquare className="text-purple-500" />}
+                 {authModal.integrationId === 'notion' && <FileText className="text-ops-text" />}
+                 Connect {integrations.find(i => i.id === authModal.integrationId)?.name}
+               </h3>
+               <button 
+                 onClick={() => setAuthModal({ isOpen: false, integrationId: null })}
+                 className="text-ops-muted hover:text-ops-text"
+               >
+                 <X size={20} />
+               </button>
+            </div>
+            
+            <div className="space-y-4">
+               {authModal.integrationId === 'slack' && (
+                 <>
+                  <div>
+                    <label className="block text-sm font-medium text-ops-muted mb-1">Bot User OAuth Token</label>
+                    <input 
+                      type="password" 
+                      placeholder="xoxb-your-token-here"
+                      className="w-full bg-ops-bg border border-ops-border rounded-lg px-4 py-3 text-ops-text focus:ring-2 focus:ring-ops-accent outline-none font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-ops-muted mb-1">Signing Secret (Optional)</label>
+                    <input 
+                      type="password" 
+                      placeholder="Optional for prototype"
+                      className="w-full bg-ops-bg border border-ops-border rounded-lg px-4 py-3 text-ops-text focus:ring-2 focus:ring-ops-accent outline-none font-mono text-sm"
+                    />
+                  </div>
+                 </>
+               )}
+
+               <div>
+                  <label className="block text-sm font-medium text-ops-muted mb-1">
+                    {authModal.integrationId === 'gmail' ? 'Email Address' : 
+                     authModal.integrationId === 'slack' ? 'Workspace Name (Display Only)' : 'Workspace ID'}
+                  </label>
+                  <input 
+                    type="text" 
+                    value={authInput}
+                    onChange={(e) => setAuthInput(e.target.value)}
+                    placeholder={
+                      authModal.integrationId === 'gmail' ? 'user@company.com' : 
+                      authModal.integrationId === 'slack' ? 'My Company Workspace' : 'ops-workspace'
+                    }
+                    autoFocus
+                    className="w-full bg-ops-bg border border-ops-border rounded-lg px-4 py-3 text-ops-text focus:ring-2 focus:ring-ops-accent focus:border-transparent outline-none transition-all"
+                  />
+                  <p className="text-xs text-ops-muted mt-2">
+                    {authModal.integrationId === 'slack' ? 
+                     "Note: For this case study prototype, this configures the simulation. To trigger real-time events, use the Manual Dispatch (+ button) in Mission Control." :
+                     "This is a simulation. No real connection is made to external servers."
+                    }
+                  </p>
+               </div>
+               
+               <div className="flex gap-3 mt-6">
+                 <button 
+                   onClick={() => setAuthModal({ isOpen: false, integrationId: null })}
+                   className="flex-1 py-2 rounded-lg text-sm font-medium border border-ops-border text-ops-text hover:bg-ops-bg transition-colors"
+                 >
+                   Cancel
+                 </button>
+                 <button 
+                   onClick={confirmConnection}
+                   disabled={!authInput || isAuthenticating}
+                   className="flex-1 py-2 rounded-lg text-sm font-medium bg-ops-accent text-white hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+                 >
+                   {isAuthenticating ? <Loader2 className="animate-spin" size={16} /> : null}
+                   {isAuthenticating ? 'Connecting...' : 'Authorize'}
+                 </button>
+               </div>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Workspace Area */}
-        <div className="flex-1 flex flex-col bg-ops-bg overflow-hidden">
-          {selectedTask ? (
-            <div className="flex-1 flex flex-col h-full overflow-hidden">
-               {/* Toolbar */}
-               <div className="p-4 border-b border-ops-border flex justify-between items-center bg-ops-card shadow-sm z-10 shrink-0">
-                  <div className="flex items-center gap-3">
-                     <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-bold text-white">
-                        {selectedTask.sender.charAt(0)}
-                     </div>
-                     <div>
-                        <div className="text-sm font-medium text-ops-text">{selectedTask.sender}</div>
-                        <div className="text-xs text-ops-muted">via {selectedTask.source}</div>
-                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                     <button 
-                       onClick={() => processTask(selectedTask.id)}
-                       disabled={isProcessing || selectedTask.status === TaskStatus.COMPLETED}
-                       className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                         selectedTask.status === TaskStatus.COMPLETED
-                         ? 'bg-emerald-600/10 text-emerald-500 cursor-default border border-emerald-500/20'
-                         : 'bg-ops-accent hover:bg-blue-600 text-white shadow-lg shadow-blue-500/20'
-                       } disabled:opacity-50 disabled:cursor-not-allowed`}
-                     >
-                        {isProcessing ? (
-                          <RotateCcw className="animate-spin" size={16} />
-                        ) : selectedTask.status === TaskStatus.COMPLETED ? (
-                          <Check size={16} />
-                        ) : (
-                          <Play size={16} />
-                        )}
-                        {selectedTask.status === TaskStatus.COMPLETED ? 'Completed' : isProcessing ? 'Processing...' : 'Auto-Execute'}
-                     </button>
-                  </div>
+      {/* Manual Dispatch Modal (New Feature for Case Study) */}
+      {dispatchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-ops-card border border-ops-border rounded-xl w-full max-w-lg p-6 shadow-2xl scale-100 transition-transform">
+             <div className="flex justify-between items-center mb-6 border-b border-ops-border pb-4">
+               <h3 className="text-xl font-bold text-ops-text flex items-center gap-2">
+                 <Terminal size={20} className="text-ops-accent" /> Dispatch Console
+               </h3>
+               <button onClick={() => setDispatchModalOpen(false)} className="text-ops-muted hover:text-ops-text"><X size={20} /></button>
+             </div>
+
+             <div className="space-y-4">
+               <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg text-sm text-blue-200">
+                  <strong>Tip for Case Study:</strong> Use this console to manually trigger specific events (like a Slack message asking for a PRD) to demonstrate the AI's response to your specific scenario.
                </div>
 
-               {/* Split View: Details & Logs */}
-               <div className="flex-1 flex min-h-0 overflow-hidden">
-                  <div className="w-1/2 p-6 overflow-y-auto border-r border-ops-border">
-                     <div className="bg-ops-card rounded-lg p-4 mb-6 border border-ops-border shadow-sm">
-                        <h5 className="text-xs font-bold text-ops-muted uppercase mb-2">Original Message</h5>
-                        <p className="text-ops-text text-sm whitespace-pre-wrap">{selectedTask.rawContent}</p>
-                     </div>
+               <div>
+                 <label className="block text-sm font-medium text-ops-muted mb-2">Source Channel</label>
+                 <div className="flex gap-2">
+                   {(['SLACK', 'GMAIL', 'NOTION'] as const).map(source => (
+                     <button
+                       key={source}
+                       onClick={() => setCustomEventSource(source)}
+                       className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-colors ${
+                         customEventSource === source 
+                         ? 'bg-ops-accent text-white border-ops-accent' 
+                         : 'bg-ops-bg text-ops-muted border-ops-border hover:border-ops-muted'
+                       }`}
+                     >
+                       {source}
+                     </button>
+                   ))}
+                 </div>
+               </div>
 
-                     {selectedTask.outputContent && (
-                       <div className="animate-fade-in">
-                          <h5 className="text-xs font-bold text-emerald-500 uppercase mb-3 flex items-center gap-2">
-                            <FileText size={14} /> Generated Output ({selectedTask.outputType})
-                          </h5>
-                          <
+               <div>
+                 <label className="block text-sm font-medium text-ops-muted mb-2">Event Content</label>
+                 <textarea
+                   value={customEventContent}
+                   onChange={(e) => setCustomEventContent(e.target.value)}
+                   placeholder="e.g. 'Hey OpsPilot, we need a one-pager for the new Analytics dashboard feature. Priority is High.'"
+                   className="w-full h-32 bg-ops-bg border border-ops-border rounded-lg px-4 py-3 text-ops-text focus:ring-2 focus:ring-ops-accent outline-none resize-none"
+                 />
+               </div>
+
+               <button 
+                 onClick={handleManualDispatch}
+                 disabled={!customEventContent.trim()}
+                 className="w-full py-3 rounded-lg font-bold bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+               >
+                 <Wifi size={16} /> Dispatch Event Now
+               </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {apiKeyMissing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-slate-900 p-8 rounded-xl border border-red-500/50 max-w-md text-center shadow-2xl">
+            <AlertTriangle className="mx-auto text-red-500 mb-4" size={48} />
+            <h2 className="text-xl font-bold text-white mb-2">Missing API Key</h2>
+            <p className="text-slate-400 mb-6">
+              OpsPilot requires a valid Gemini API Key to function. 
+              Please verify your <code>process.env.API_KEY</code> setup.
+            </p>
+          </div>
+        </div>
+      )}
+      
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      
+      <main className="flex-1 flex flex-col min-w-0 bg-ops-bg transition-colors duration-300">
+        <header className="h-16 border-b border-ops-border bg-ops-card/50 backdrop-blur flex items-center justify-between px-6 z-10">
+          <h2 className="font-semibold text-lg text-ops-text capitalize flex items-center gap-2">
+             {activeTab === 'inbox' && <Inbox size={20} className="text-ops-muted" />}
+             {activeTab === 'analysis' && <FileSearch size={20} className="text-ops-muted" />}
+             {activeTab === 'dashboard' && <div className="text-ops-muted"><span className="text-ops-accent">Ops</span>Dashboard</div>}
+             {activeTab === 'documents' && <FileText size={20} className="text-ops-muted" />}
+             {activeTab === 'integrations' && <Link2 size={20} className="text-ops-muted" />}
+             {activeTab === 'settings' && <Sliders size={20} className="text-ops-muted" />}
+             
+             {activeTab === 'inbox' ? 'Mission Control' : 
+              activeTab === 'analysis' ? 'Doc Analysis' :
+              activeTab === 'documents' ? 'Knowledge Base' : 
+              activeTab === 'integrations' ? 'Connectors' :
+              activeTab === 'dashboard' ? '' : 'Settings'}
+          </h2>
+          <div className="flex items-center gap-4">
+             <div className="text-xs text-ops-muted font-mono">v0.2.1-beta</div>
+             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 border-2 border-ops-bg shadow-sm"></div>
+          </div>
+        </header>
+        
+        <div className="flex-1 overflow-hidden relative">
+          {activeTab === 'dashboard' && renderDashboard()}
+          {activeTab === 'inbox' && renderInbox()}
+          {activeTab === 'analysis' && renderAnalysis()}
+          {activeTab === 'documents' && renderDocuments()}
+          {activeTab === 'integrations' && renderIntegrations()}
+          {activeTab === 'settings' && renderSettings()}
+        </div>
+      </main>
+    </div>
+  );
+}
