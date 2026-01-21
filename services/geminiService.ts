@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { Task, TaskType, TaskPriority } from "../types";
+import { Task, TaskType, TaskPriority, ChatMessage } from "../types";
 
 // Helper to get AI instance safely
 const getAI = () => {
@@ -32,7 +32,7 @@ export const classifyTaskWithGemini = async (rawContent: string, sender: string)
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-09-2025", // Using the latest flash model for speed
+      model: "gemini-3-flash-preview", 
       contents: `
         You are the 'Task Classifier Agent' for OpsPilot.
         Analyze the following incoming message from ${sender}.
@@ -84,7 +84,7 @@ export const makeDecisionWithGemini = async (task: Task): Promise<{
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-09-2025", 
+      model: "gemini-3-flash-preview", 
       contents: `
         You are the 'Decision Agent'.
         
@@ -137,7 +137,7 @@ export const executeTaskWithGemini = async (task: Task): Promise<string> => {
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-09-2025", 
+      model: "gemini-3-flash-preview", 
       contents: prompt,
     });
 
@@ -145,5 +145,86 @@ export const executeTaskWithGemini = async (task: Task): Promise<string> => {
   } catch (error) {
     console.error("Execution Agent Error:", error);
     return "Error generating content.";
+  }
+};
+
+/**
+ * DOCUMENT ANALYST AGENT
+ * Analyzes uploaded PDFs or images and provides insights.
+ */
+export const analyzeDocumentWithGemini = async (base64Data: string, mimeType: string): Promise<string> => {
+  try {
+    const ai = getAI();
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview", 
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data
+            }
+          },
+          {
+            text: "Analyze this document. Provide a comprehensive summary, 3 key takeaways, and any identified action items. Format the output in Markdown."
+          }
+        ]
+      }
+    });
+
+    return response.text || "Analysis complete, but no text returned.";
+  } catch (error) {
+    console.error("Document Analysis Error:", error);
+    throw error;
+  }
+};
+
+/**
+ * DOCUMENT CHAT AGENT
+ * Answers questions about the document.
+ */
+export const chatWithDocument = async (
+  base64Data: string, 
+  mimeType: string, 
+  history: ChatMessage[], 
+  question: string
+): Promise<string> => {
+  try {
+    const ai = getAI();
+
+    // Construct the chat history with the file in the first turn
+    // Note: In a real persistent chat session we'd use ai.chats.create, 
+    // but for this stateless implementation we'll reconstruct the turn.
+    
+    // Simplification: We'll send the file + history + new question in one go as 'generateContent'
+    // or construct a proper multi-turn prompt.
+    
+    const parts: any[] = [
+      {
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      },
+      { text: "You are a helpful assistant analyzing this document." }
+    ];
+
+    // Append history
+    history.forEach(msg => {
+      parts.push({ text: `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.text}` });
+    });
+
+    parts.push({ text: `User: ${question}\nAssistant:` });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: { parts }
+    });
+
+    return response.text || "I couldn't generate an answer.";
+  } catch (error) {
+    console.error("Document Chat Error:", error);
+    throw error;
   }
 };

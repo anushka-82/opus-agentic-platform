@@ -24,6 +24,8 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({ logs }) => {
     }
   };
 
+  // Logs always look best in dark terminal style, so we hardcode some slate-colors here for the inner content
+  // but adapt the container border to the theme.
   const getColor = (agent: AgentRole) => {
     switch (agent) {
       case AgentRole.INPUT: return 'text-purple-400 border-purple-400/30 bg-purple-400/10';
@@ -36,8 +38,8 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({ logs }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-black/40 rounded-xl overflow-hidden border border-slate-700/50 backdrop-blur-sm">
-      <div className="px-4 py-3 bg-slate-900/80 border-b border-slate-700 flex justify-between items-center">
+    <div className="flex flex-col h-full bg-[#0f172a] rounded-xl overflow-hidden border border-ops-border shadow-inner">
+      <div className="px-4 py-3 bg-[#1e293b] border-b border-slate-700 flex justify-between items-center">
         <div className="flex items-center gap-2 text-slate-400">
           <Terminal size={16} />
           <span className="text-xs font-mono font-bold uppercase tracking-wider">Agent Live Feed</span>
@@ -73,7 +75,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({ logs }) => {
                  {log.message}
                </p>
                {log.data && (
-                 <div className="mt-2 p-2 bg-slate-900 rounded border border-slate-800 text-xs text-slate-400 overflow-x-auto">
+                 <div className="mt-2 p-2 bg-[#020617] rounded border border-slate-800 text-xs text-slate-400 overflow-x-auto">
                    <pre>{JSON.stringify(log.data, null, 2)}</pre>
                  </div>
                )}

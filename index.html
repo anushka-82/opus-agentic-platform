@@ -6,8 +6,10 @@
     <title>OpsPilot - Autonomous Ops Agent</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
             fontFamily: {
@@ -16,12 +18,15 @@
             },
             colors: {
               ops: {
-                bg: '#0f172a', // Slate 900
-                card: '#1e293b', // Slate 800
-                accent: '#3b82f6', // Blue 500
-                success: '#10b981', // Emerald 500
-                warning: '#f59e0b', // Amber 500
-                danger: '#ef4444', // Red 500
+                bg: 'rgb(var(--color-bg) / <alpha-value>)',
+                card: 'rgb(var(--color-card) / <alpha-value>)',
+                text: 'rgb(var(--color-text) / <alpha-value>)',
+                muted: 'rgb(var(--color-muted) / <alpha-value>)',
+                border: 'rgb(var(--color-border) / <alpha-value>)',
+                accent: '#3b82f6', // Blue 500 (Keep consistent)
+                success: '#10b981', 
+                warning: '#f59e0b', 
+                danger: '#ef4444', 
               }
             }
           }
@@ -29,24 +34,44 @@
       }
     </script>
     <style>
-      body {
-        background-color: #0f172a;
-        color: #f8fafc;
+      :root {
+        /* Default Dark Theme (Slate) */
+        --color-bg: 15 23 42;     /* Slate 900 */
+        --color-card: 30 41 59;   /* Slate 800 */
+        --color-text: 248 250 252;/* Slate 50 */
+        --color-muted: 148 163 184;/* Slate 400 */
+        --color-border: 51 65 85; /* Slate 700 */
       }
+
+      .light-theme {
+        /* Light Theme (Slate/White) */
+        --color-bg: 241 245 249;  /* Slate 100 */
+        --color-card: 255 255 255;/* White */
+        --color-text: 15 23 42;   /* Slate 900 */
+        --color-muted: 100 116 139;/* Slate 500 */
+        --color-border: 226 232 240;/* Slate 200 */
+      }
+
+      body {
+        background-color: rgb(var(--color-bg));
+        color: rgb(var(--color-text));
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      
       /* Custom scrollbar for terminal look */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #1e293b;
+        background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: #475569;
+        background: rgb(var(--color-border));
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #64748b;
+        background: rgb(var(--color-muted));
       }
     </style>
   <script type="importmap">

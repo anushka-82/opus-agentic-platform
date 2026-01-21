@@ -1,3 +1,4 @@
+
 export enum AgentRole {
   INPUT = 'INPUT_AGENT',
   CLASSIFIER = 'CLASSIFIER_AGENT',
@@ -63,4 +64,32 @@ export interface Metric {
   value: string | number;
   change?: number; // percentage
   trend: 'up' | 'down' | 'neutral';
+}
+
+export interface IntegrationConfig {
+  id: 'slack' | 'gmail' | 'notion';
+  name: string;
+  description: string;
+  isConnected: boolean;
+  lastSync?: number;
+  connectedAccount?: string;
+  autoSummarize?: boolean;
+  accessToken?: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  timestamp: number;
+}
+
+export interface DocumentSession {
+  id: string;
+  fileName: string;
+  fileData: string; // Base64
+  mimeType: string;
+  uploadTime: number;
+  insights: string;
+  chatHistory: ChatMessage[];
+  isAnalyzing: boolean;
 }
