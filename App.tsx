@@ -3,7 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { AgentLogs } from './components/AgentLogs';
 import { DashboardStats } from './components/DashboardStats';
 import { 
-  Task, AgentLog, AgentRole, TaskStatus, TaskType, Metric, IntegrationConfig, DocumentSession, ChatMessage
+  Task, AgentLog, AgentRole, TaskStatus, TaskType, Metric, IntegrationConfig, DocumentSession, ChatMessage, TaskPriority
 } from './types';
 import { 
   classifyTaskWithGemini, makeDecisionWithGemini, executeTaskWithGemini, analyzeDocumentWithGemini, chatWithDocument 
