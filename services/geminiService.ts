@@ -1,10 +1,8 @@
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Task, TaskType, TaskPriority, ChatMessage } from "../types";
 
-// Helper to get AI instance safely
-const getAI = () => {
-  // Safe access to process.env for browser environments
-  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
+// Helper to get AI instance with dynamic key
+const getAI = (apiKey: string) => {
   if (!apiKey) throw new Error("API Key not found");
   return new GoogleGenAI({ apiKey });
 };
@@ -13,14 +11,14 @@ const getAI = () => {
  * CLASSIFIER AGENT
  * Analyzes raw text to determine type, priority, and summary.
  */
-export const classifyTaskWithGemini = async (rawContent: string, sender: string): Promise<{
+export const classifyTaskWithGemini = async (apiKey: string, rawContent: string, sender: string): Promise<{
   type: TaskType;
   priority: TaskPriority;
   summary: string;
   entities: string[];
 }> => {
   try {
-    const ai = getAI();
+    const ai = getAI(apiKey);
     const schema: Schema = {
       type: Type.OBJECT,
       properties: {
@@ -67,13 +65,13 @@ export const classifyTaskWithGemini = async (rawContent: string, sender: string)
  * DECISION AGENT
  * Decides what action to take based on classification.
  */
-export const makeDecisionWithGemini = async (task: Task): Promise<{
+export const makeDecisionWithGemini = async (apiKey: string, task: Task): Promise<{
   action: string;
   reasoning: string;
   outputType: 'EMAIL' | 'PRD' | 'SUMMARY' | 'NONE';
 }> => {
   try {
-    const ai = getAI();
+    const ai = getAI(apiKey);
     const schema: Schema = {
       type: Type.OBJECT,
       properties: {
@@ -124,9 +122,9 @@ export const makeDecisionWithGemini = async (task: Task): Promise<{
  * EXECUTION AGENT
  * Generates the actual content (Email, PRD, etc.)
  */
-export const executeTaskWithGemini = async (task: Task): Promise<string> => {
+export const executeTaskWithGemini = async (apiKey: string, task: Task): Promise<string> => {
   try {
-    const ai = getAI();
+    const ai = getAI(apiKey);
     
     let prompt = "";
     if (task.outputType === 'PRD') {
@@ -153,9 +151,9 @@ export const executeTaskWithGemini = async (task: Task): Promise<string> => {
  * DOCUMENT ANALYST AGENT
  * Analyzes uploaded PDFs or images and provides insights.
  */
-export const analyzeDocumentWithGemini = async (base64Data: string, mimeType: string): Promise<string> => {
+export const analyzeDocumentWithGemini = async (apiKey: string, base64Data: string, mimeType: string): Promise<string> => {
   try {
-    const ai = getAI();
+    const ai = getAI(apiKey);
     
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview", 
@@ -186,13 +184,14 @@ export const analyzeDocumentWithGemini = async (base64Data: string, mimeType: st
  * Answers questions about the document.
  */
 export const chatWithDocument = async (
+  apiKey: string,
   base64Data: string, 
   mimeType: string, 
   history: ChatMessage[], 
   question: string
 ): Promise<string> => {
   try {
-    const ai = getAI();
+    const ai = getAI(apiKey);
 
     // Construct the chat history with the file in the first turn
     // Note: In a real persistent chat session we'd use ai.chats.create, 

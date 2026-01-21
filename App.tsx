@@ -10,7 +10,7 @@ import {
 } from './services/geminiService';
 import { fetchRecentEmails } from './services/gmailService';
 import { streamService } from './services/streamService';
-import { Plus, Play, RotateCcw, FileText, Check, Bot, AlertTriangle, Inbox, Sun, Moon, Sliders, Trash2, Link2, MessageSquare, Mail, Wifi, X, Loader2, Sparkles, Upload, FileSearch, Send, Download, Share2, Terminal, Activity, CheckCircle } from 'lucide-react';
+import { Plus, Play, RotateCcw, FileText, Check, Bot, AlertTriangle, Inbox, Sun, Moon, Sliders, Trash2, Link2, MessageSquare, Mail, Wifi, X, Loader2, Sparkles, Upload, FileSearch, Send, Download, Share2, Terminal, Activity, CheckCircle, Eye, EyeOff, Edit2, Save } from 'lucide-react';
 
 declare const google: any;
 
@@ -38,6 +38,20 @@ export default function App() {
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   
+  // Edit Mode State
+  const [isEditingOutput, setIsEditingOutput] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
+
+  // API Key State (Env + User Override)
+  // We initialize from localStorage if available to persist between reloads
+  const [userApiKey, setUserApiKey] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('ops_pilot_api_key') || '';
+    }
+    return '';
+  });
+  const [showApiKey, setShowApiKey] = useState(false);
+
   // Simulation Control
   const [simulationEnabled, setSimulationEnabled] = useState(false);
 
@@ -85,15 +99,30 @@ export default function App() {
     }
   }, [theme]);
 
+  // Reset Edit State when task changes
+  useEffect(() => {
+    setIsEditingOutput(false);
+    setEditedContent('');
+  }, [selectedTaskId]);
+
   // API Key Check & Auto-Simulation
   useEffect(() => {
-    const key = getEnv('API_KEY');
-    if (!key) {
-      console.warn("API Key missing. Running in Simulation/Demo Mode.");
+    const envKey = getEnv('API_KEY');
+    if (!envKey && !userApiKey) {
+      console.warn("No API Key detected. Defaulting to Simulation Mode.");
       setSimulationEnabled(true);
-      // We do NOT block the UI anymore, allowing the user to experience the prototype
+    } else {
+      // If we have a key, we can turn off forced simulation (user can still toggle it on manually)
+      setSimulationEnabled(false);
     }
-  }, []);
+  }, [userApiKey]);
+
+  // Save API Key to LocalStorage
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setUserApiKey(newVal);
+    localStorage.setItem('ops_pilot_api_key', newVal);
+  };
 
   // Initialize Google Identity Services whenever Client ID changes
   useEffect(() => {
@@ -387,12 +416,33 @@ export default function App() {
     addLog(AgentRole.EXECUTION, `Successfully sent content to ${task.sender} via ${destination}`, 'RESULT');
   };
 
+  const handleStartEdit = (task: Task) => {
+    setEditedContent(task.outputContent || '');
+    setIsEditingOutput(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!selectedTaskId) return;
+    setTasks(prev => prev.map(t => 
+      t.id === selectedTaskId 
+        ? { ...t, outputContent: editedContent } 
+        : t
+    ));
+    setIsEditingOutput(false);
+    addLog(AgentRole.INPUT, "User manually updated the generated content.", 'ACTION');
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingOutput(false);
+    setEditedContent('');
+  };
+
 
   const processTask = useCallback(async (taskId: string) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
-    // Prevent double processing if already processing this specific task or failed
+    // Prevent double processing
     if (task.status === TaskStatus.PROCESSING || task.status === TaskStatus.COMPLETED) return;
 
     setIsProcessing(true);
@@ -400,15 +450,15 @@ export default function App() {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: TaskStatus.PROCESSING } : t));
 
     try {
-      // CHECK API KEY EXISTENCE
-      const apiKey = getEnv('API_KEY');
+      // CHECK API KEY EXISTENCE (User provided OR Env)
+      const effectiveKey = userApiKey || getEnv('API_KEY');
       
       let classification, decision, output;
 
-      if (!apiKey) {
+      if (!effectiveKey) {
          // --- MOCK SIMULATION MODE ---
          // If no API key is present, we fake the AI processing to keep the app functional for demos
-         addLog(AgentRole.CLASSIFIER, "API Key missing. Running in simulation mode.", 'THINKING');
+         addLog(AgentRole.CLASSIFIER, "No API Key available. Running in SIMULATION mode.", 'THINKING');
          await new Promise(r => setTimeout(r, 800));
          
          classification = {
@@ -429,16 +479,16 @@ export default function App() {
          
          await new Promise(r => setTimeout(r, 1000));
          if (decision.outputType === 'PRD') {
-            output = `# Simulated PRD\n\n**Feature**: ${task.summary}\n\n## Overview\nThis is a generated response in simulation mode because a valid API Key was not detected.\n\n## Requirements\n- [ ] Requirement 1\n- [ ] Requirement 2`;
+            output = `# Simulated PRD\n\n**Feature**: ${task.summary}\n\n## Overview\nThis is a generated response in simulation mode because a valid Gemini API Key was not detected.\n\nTo get real AI responses:\n1. Go to Settings\n2. Enter your Google Gemini API Key\n\n## Requirements\n- [ ] Requirement 1\n- [ ] Requirement 2`;
          } else {
-            output = `Subject: Re: ${task.summary}\n\nHi there,\n\nThis is a simulated email draft generated by OpsPilot in demo mode.\n\nBest,\nOpsPilot`;
+            output = `Subject: Re: ${task.summary}\n\nHi there,\n\nThis is a simulated email draft generated by OpsPilot in demo mode.\n\nPlease configure your API Key in Settings to generate real content.\n\nBest,\nOpsPilot`;
          }
          addLog(AgentRole.EXECUTION, "Content generated successfully (Simulated)", 'RESULT', { preview: "..." });
 
       } else {
          // --- REAL AI MODE ---
          addLog(AgentRole.CLASSIFIER, "Analyzing message intent and entities...", 'THINKING');
-         classification = await classifyTaskWithGemini(task.rawContent, task.sender);
+         classification = await classifyTaskWithGemini(effectiveKey, task.rawContent, task.sender);
          addLog(AgentRole.CLASSIFIER, "Classification complete", 'RESULT', classification);
          
          const updatedTaskForDecision = { ...task, ...classification };
@@ -448,13 +498,13 @@ export default function App() {
          addLog(AgentRole.MEMORY, "No conflicting blocking constraints found.", 'RESULT');
 
          addLog(AgentRole.DECISION, "Determining optimal execution path...", 'THINKING');
-         decision = await makeDecisionWithGemini(updatedTaskForDecision);
+         decision = await makeDecisionWithGemini(effectiveKey, updatedTaskForDecision);
          addLog(AgentRole.DECISION, `Decision made: ${decision.action}`, 'ACTION', decision);
          
          if (decision.outputType !== 'NONE') {
             addLog(AgentRole.EXECUTION, `Executing action: ${decision.action}...`, 'ACTION');
             const decidedTask = { ...updatedTaskForDecision, ...decision };
-            output = await executeTaskWithGemini(decidedTask);
+            output = await executeTaskWithGemini(effectiveKey, decidedTask);
             addLog(AgentRole.EXECUTION, "Content generated successfully", 'RESULT', { preview: output.substring(0, 100) + '...' });
          } else {
             output = undefined;
@@ -480,7 +530,7 @@ export default function App() {
     } finally {
       setIsProcessing(false);
     }
-  }, [tasks]);
+  }, [tasks, userApiKey]);
 
   // AUTO-PROCESS LOGIC
   useEffect(() => {
@@ -519,17 +569,17 @@ export default function App() {
         };
         setDocSession(session);
 
-        const apiKey = getEnv('API_KEY');
-        if (apiKey) {
+        const effectiveKey = userApiKey || getEnv('API_KEY');
+        if (effectiveKey) {
            // Analyze immediately with Real AI
-           const insights = await analyzeDocumentWithGemini(base64Data, file.type);
+           const insights = await analyzeDocumentWithGemini(effectiveKey, base64Data, file.type);
            setDocSession(prev => prev ? { ...prev, insights, isAnalyzing: false } : null);
         } else {
            // Simulated Analysis
            await new Promise(r => setTimeout(r, 1500));
            setDocSession(prev => prev ? { 
              ...prev, 
-             insights: "## Simulated Analysis\n\n(No API Key detected)\n\n**Key Takeaway 1**: The document appears to be valid.\n**Key Takeaway 2**: Content analysis requires a valid Gemini API key.", 
+             insights: "## Simulated Analysis\n\n(No API Key detected)\n\n**Key Takeaway 1**: The document appears to be valid.\n**Key Takeaway 2**: Content analysis requires a valid Gemini API key to function.\n\nPlease enter your API Key in Settings.", 
              isAnalyzing: false 
            } : null);
         }
@@ -556,14 +606,14 @@ export default function App() {
     setDocChatInput('');
 
     try {
-      const apiKey = getEnv('API_KEY');
+      const effectiveKey = userApiKey || getEnv('API_KEY');
       let responseText = "";
 
-      if (apiKey) {
-        responseText = await chatWithDocument(docSession.fileData, docSession.mimeType, updatedHistory, userMsg.text);
+      if (effectiveKey) {
+        responseText = await chatWithDocument(effectiveKey, docSession.fileData, docSession.mimeType, updatedHistory, userMsg.text);
       } else {
         await new Promise(r => setTimeout(r, 1000));
-        responseText = "I am running in simulation mode because no API Key was provided. I cannot analyze the actual document content, but I received your message: " + userMsg.text;
+        responseText = "I am running in simulation mode because no API Key was provided. Please go to Settings and enter a valid Gemini API Key to enable real analysis.";
       }
       
       const botMsg: ChatMessage = { role: 'model', text: responseText, timestamp: Date.now() };
@@ -785,8 +835,14 @@ export default function App() {
                         </button>
                       )}
                       
-                      {selectedTask.status === TaskStatus.COMPLETED && selectedTask.outputContent && (
+                      {selectedTask.status === TaskStatus.COMPLETED && selectedTask.outputContent && !isEditingOutput && (
                         <div className="flex gap-2">
+                           <button 
+                             onClick={() => handleStartEdit(selectedTask)}
+                             className="flex items-center gap-2 bg-ops-bg border border-ops-border hover:bg-ops-border text-ops-text px-3 py-2 rounded-lg text-sm transition-colors"
+                           >
+                             <Edit2 size={16} /> Edit
+                           </button>
                            <button 
                              onClick={() => handleDownload(selectedTask)}
                              className="flex items-center gap-2 bg-ops-bg border border-ops-border hover:bg-ops-border text-ops-text px-3 py-2 rounded-lg text-sm transition-colors"
@@ -841,12 +897,39 @@ export default function App() {
                <div className="flex-1 overflow-hidden flex flex-col p-6 gap-6">
                   {selectedTask.outputContent && (
                     <div className="flex-1 flex flex-col min-h-[200px]">
-                      <h3 className="text-sm font-bold text-ops-muted uppercase mb-3 flex items-center gap-2">
-                        <FileText size={16} /> Generated Output ({selectedTask.outputType})
+                      <h3 className="text-sm font-bold text-ops-muted uppercase mb-3 flex items-center gap-2 justify-between">
+                        <span className="flex items-center gap-2"><FileText size={16} /> Generated Output ({selectedTask.outputType})</span>
+                        {isEditingOutput && <span className="text-xs text-ops-accent animate-pulse">Editing Mode Active</span>}
                       </h3>
-                      <div className="flex-1 bg-white text-black p-6 rounded-xl shadow-inner overflow-y-auto border border-ops-border prose prose-sm max-w-none">
-                         <pre className="whitespace-pre-wrap font-sans">{selectedTask.outputContent}</pre>
-                      </div>
+                      
+                      {isEditingOutput ? (
+                        <div className="flex-1 flex flex-col gap-2">
+                          <textarea 
+                            value={editedContent}
+                            onChange={(e) => setEditedContent(e.target.value)}
+                            className="flex-1 bg-white text-black p-4 rounded-xl shadow-inner border border-ops-border focus:ring-2 focus:ring-ops-accent focus:outline-none font-mono text-sm resize-none"
+                            placeholder="Edit content here..."
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button 
+                                onClick={handleCancelEdit}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-ops-card border border-ops-border text-ops-text hover:bg-ops-border/50 text-sm font-medium"
+                            >
+                                <X size={16} /> Cancel
+                            </button>
+                            <button 
+                                onClick={handleSaveEdit}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 text-sm font-medium shadow-md"
+                            >
+                                <Save size={16} /> Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex-1 bg-white text-black p-6 rounded-xl shadow-inner overflow-y-auto border border-ops-border prose prose-sm max-w-none">
+                           <pre className="whitespace-pre-wrap font-sans">{selectedTask.outputContent}</pre>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1205,25 +1288,37 @@ export default function App() {
              <div>
                 <label className="block text-sm font-medium text-ops-text mb-1">Google GenAI API Key</label>
                 <div className="flex gap-2">
-                   <input 
-                     type="password" 
-                     value={getEnv('API_KEY') ? "sk-xxxxxxxxxxxxxxxxxxxxxxxx" : ""}
-                     disabled
-                     className="flex-1 bg-ops-bg border border-ops-border rounded-lg px-3 py-2 text-ops-muted font-mono text-sm"
-                     placeholder="Not configured (Simulating AI)"
-                   />
-                   {getEnv('API_KEY') ? (
-                     <span className="flex items-center gap-1 text-emerald-500 text-sm font-medium px-2">
+                   <div className="relative flex-1">
+                     <input 
+                       type={showApiKey ? "text" : "password"} 
+                       value={userApiKey}
+                       onChange={handleApiKeyChange}
+                       className="w-full bg-ops-bg border border-ops-border rounded-lg pl-3 pr-10 py-2 text-ops-text font-mono text-sm focus:ring-2 focus:ring-ops-accent outline-none"
+                       placeholder={getEnv('API_KEY') ? "Using env variable (override here)" : "Enter your API Key here"}
+                     />
+                     <button 
+                       onClick={() => setShowApiKey(!showApiKey)}
+                       className="absolute right-3 top-1/2 -translate-y-1/2 text-ops-muted hover:text-ops-text"
+                     >
+                       {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                     </button>
+                   </div>
+                   
+                   {userApiKey || getEnv('API_KEY') ? (
+                     <span className="flex items-center gap-1 text-emerald-500 text-sm font-medium px-2 shrink-0">
                        <Check size={16} /> Active
                      </span>
                    ) : (
-                     <span className="flex items-center gap-1 text-yellow-500 text-sm font-medium px-2">
-                       <AlertTriangle size={16} /> Simulating
+                     <span className="flex items-center gap-1 text-yellow-500 text-sm font-medium px-2 shrink-0">
+                       <AlertTriangle size={16} /> Missing
                      </span>
                    )}
                 </div>
                 <p className="text-xs text-ops-muted mt-2">
-                  Key is injected via environment variables. To change it, update your environment configuration.
+                  Enter your key to enable real AI processing. It is stored locally in your browser.
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-ops-accent hover:underline ml-1">
+                    Get an API Key
+                  </a>
                 </p>
              </div>
 
