@@ -23,6 +23,14 @@ const INITIAL_TASK: Task = {
   status: TaskStatus.PENDING
 };
 
+// Safe environment accessor
+const getEnv = (key: string) => {
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env[key] || '';
+  }
+  return '';
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('inbox');
   const [tasks, setTasks] = useState<Task[]>([INITIAL_TASK]);
@@ -35,7 +43,7 @@ export default function App() {
   const [simulationEnabled, setSimulationEnabled] = useState(false);
 
   // Gmail Config State
-  const [gmailClientId, setGmailClientId] = useState(process.env.GMAIL_CLIENT_ID || '');
+  const [gmailClientId, setGmailClientId] = useState(getEnv('GMAIL_CLIENT_ID'));
   
   // Document Analysis State
   const [docSession, setDocSession] = useState<DocumentSession | null>(null);
@@ -80,7 +88,8 @@ export default function App() {
 
   // API Key Check
   useEffect(() => {
-    if (!process.env.API_KEY) {
+    const key = getEnv('API_KEY');
+    if (!key) {
       setApiKeyMissing(true);
     }
   }, []);

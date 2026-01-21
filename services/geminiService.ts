@@ -3,7 +3,8 @@ import { Task, TaskType, TaskPriority, ChatMessage } from "../types";
 
 // Helper to get AI instance safely
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
+  // Safe access to process.env for browser environments
+  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : '';
   if (!apiKey) throw new Error("API Key not found");
   return new GoogleGenAI({ apiKey });
 };
