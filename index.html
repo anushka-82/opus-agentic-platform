@@ -8,13 +8,15 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script>
-      // Polyfill for process.env to prevent "process is not defined" crash in browser
-      window.process = {
-        env: {
-          API_KEY: '', // This will be populated by build tools or remain empty
-          GMAIL_CLIENT_ID: ''
-        }
-      };
+      // Safe Polyfill for process.env to prevent "process is not defined" crash in browser
+      if (typeof window !== 'undefined' && typeof window.process === 'undefined') {
+        window.process = {
+          env: {
+            API_KEY: '', 
+            GMAIL_CLIENT_ID: ''
+          }
+        };
+      }
 
       tailwind.config = {
         darkMode: 'class',
