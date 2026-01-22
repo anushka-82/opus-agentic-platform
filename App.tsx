@@ -53,7 +53,9 @@ export default function App() {
   const [showApiKey, setShowApiKey] = useState(false);
 
   // Simulation Control
-  const [simulationEnabled, setSimulationEnabled] = useState(false);
+  // IMPORTANT: We default to TRUE now so simulated connectors (Slack) work immediately.
+  // The streamService will only emit events if a connector is actually CONNECTED.
+  const [simulationEnabled, setSimulationEnabled] = useState(true);
 
   // Gmail Config State
   const [gmailClientId, setGmailClientId] = useState(getEnv('GMAIL_CLIENT_ID'));
@@ -69,8 +71,7 @@ export default function App() {
   // Integration State
   const [integrations, setIntegrations] = useState<IntegrationConfig[]>([
     { id: 'slack', name: 'Slack', description: 'Listen to engineering and product channels.', isConnected: false, autoSummarize: false },
-    { id: 'gmail', name: 'Gmail', description: 'Monitor support and info inboxes.', isConnected: false, autoSummarize: false },
-    { id: 'notion', name: 'Notion', description: 'Watch for new pages in Product Workspace.', isConnected: false, autoSummarize: false }
+    { id: 'gmail', name: 'Gmail', description: 'Monitor support and info inboxes.', isConnected: false, autoSummarize: false }
   ]);
 
   // Auth Modal State
@@ -81,7 +82,7 @@ export default function App() {
   // Manual Dispatch (Custom Event) Modal
   const [dispatchModalOpen, setDispatchModalOpen] = useState(false);
   const [customEventContent, setCustomEventContent] = useState('');
-  const [customEventSource, setCustomEventSource] = useState<'SLACK' | 'GMAIL' | 'NOTION'>('SLACK');
+  const [customEventSource, setCustomEventSource] = useState<'SLACK' | 'GMAIL'>('SLACK');
 
   // OAuth Client Ref
   const tokenClient = useRef<any>(null);
@@ -104,18 +105,6 @@ export default function App() {
     setIsEditingOutput(false);
     setEditedContent('');
   }, [selectedTaskId]);
-
-  // API Key Check & Auto-Simulation
-  useEffect(() => {
-    const envKey = getEnv('API_KEY');
-    if (!envKey && !userApiKey) {
-      console.warn("No API Key detected. Defaulting to Simulation Mode.");
-      setSimulationEnabled(true);
-    } else {
-      // If we have a key, we can turn off forced simulation (user can still toggle it on manually)
-      setSimulationEnabled(false);
-    }
-  }, [userApiKey]);
 
   // Save API Key to LocalStorage
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,11 +133,12 @@ export default function App() {
     }
   }, [gmailClientId]);
 
-  // Real-time Stream Subscription (Simulated)
+  // Real-time Stream Subscription
   useEffect(() => {
-    // Only subscribe if simulation mode is enabled
+    // If we have active simulated connectors, we want to listen to the stream regardless of "Real AI Mode".
+    // "simulationEnabled" is now just a pause/play button for the generator.
     if (!simulationEnabled) {
-      return;
+       return;
     }
 
     const unsubscribe = streamService.subscribe((newTask) => {
@@ -156,7 +146,7 @@ export default function App() {
       addLog(AgentRole.INPUT, `Stream Event: New signal from ${newTask.source}`, 'ACTION', { id: newTask.id });
     });
     return () => unsubscribe();
-  }, [simulationEnabled]); // Re-run when toggle changes
+  }, [simulationEnabled]); 
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -171,6 +161,7 @@ export default function App() {
         if (integration.id === 'gmail' && integration.accessToken) {
           streamService.deactivateConnector('gmail');
         } else {
+          // Slack is simulated in this prototype, so we activate them if connected
           streamService.activateConnector(integration.id);
         }
       } else {
@@ -341,7 +332,7 @@ export default function App() {
       id: `manual-${Date.now()}`,
       source: customEventSource,
       rawContent: customEventContent,
-      sender: customEventSource === 'SLACK' ? 'Demo User' : customEventSource === 'GMAIL' ? 'demo@example.com' : 'Notion Bot',
+      sender: customEventSource === 'SLACK' ? 'Demo User' : 'demo@example.com',
       timestamp: Date.now(),
       status: TaskStatus.PENDING,
       type: TaskType.UNKNOWN
@@ -407,7 +398,7 @@ export default function App() {
   const handleDispatch = async (task: Task) => {
     if (!task.outputContent) return;
     
-    const destination = task.source === 'GMAIL' ? 'Email' : task.source === 'SLACK' ? 'Slack' : 'Notion';
+    const destination = task.source === 'GMAIL' ? 'Email' : 'Slack';
     addLog(AgentRole.EXECUTION, `Initiating dispatch to ${destination}...`, 'ACTION');
     
     // Simulate network delay
@@ -683,7 +674,7 @@ export default function App() {
               <span>Real-time Feed</span>
               <span className={`text-xs font-normal px-2 py-1 rounded-full border flex items-center gap-1 ${simulationEnabled ? 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' : 'text-slate-500 bg-slate-500/10 border-slate-500/20'}`}>
                 <Activity size={12} className={simulationEnabled ? "animate-pulse" : ""} /> 
-                {simulationEnabled ? 'Simulating Traffic' : 'Manual Mode'}
+                {simulationEnabled ? 'Active' : 'Paused'}
               </span>
             </h3>
             <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
@@ -695,7 +686,6 @@ export default function App() {
                        <div className="flex items-center gap-2">
                           {task.source === 'SLACK' && <MessageSquare size={14} className="text-purple-500" />}
                           {task.source === 'GMAIL' && <Mail size={14} className="text-red-500" />}
-                          {task.source === 'NOTION' && <FileText size={14} className="text-ops-text" />}
                           <span className="text-xs font-bold text-ops-muted">{task.sender}</span>
                        </div>
                        <span className="text-[10px] text-ops-muted shrink-0">{new Date(task.timestamp).toLocaleTimeString()}</span>
@@ -1368,7 +1358,6 @@ export default function App() {
                <h3 className="text-xl font-bold text-ops-text flex items-center gap-2">
                  {authModal.integrationId === 'gmail' && <Mail className="text-red-500" />}
                  {authModal.integrationId === 'slack' && <MessageSquare className="text-purple-500" />}
-                 {authModal.integrationId === 'notion' && <FileText className="text-ops-text" />}
                  Connect {integrations.find(i => i.id === authModal.integrationId)?.name}
                </h3>
                <button 
@@ -1465,7 +1454,7 @@ export default function App() {
                <div>
                  <label className="block text-sm font-medium text-ops-muted mb-2">Source Channel</label>
                  <div className="flex gap-2">
-                   {(['SLACK', 'GMAIL', 'NOTION'] as const).map(source => (
+                   {(['SLACK', 'GMAIL'] as const).map(source => (
                      <button
                        key={source}
                        onClick={() => setCustomEventSource(source)}

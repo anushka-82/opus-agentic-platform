@@ -38,7 +38,7 @@ export interface AgentLog {
 
 export interface Task {
   id: string;
-  source: 'SLACK' | 'GMAIL' | 'NOTION';
+  source: 'SLACK' | 'GMAIL';
   rawContent: string;
   sender: string;
   timestamp: number;
@@ -67,7 +67,7 @@ export interface Metric {
 }
 
 export interface IntegrationConfig {
-  id: 'slack' | 'gmail' | 'notion';
+  id: 'slack' | 'gmail';
   name: string;
   description: string;
   isConnected: boolean;
