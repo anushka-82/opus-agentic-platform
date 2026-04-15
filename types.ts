@@ -21,8 +21,9 @@ export enum TaskPriority {
 }
 
 export enum TaskType {
-  ACTION_ITEM = 'ACTION_ITEM',
-  QUESTION = 'QUESTION',
+  ACTION_KB = 'ACTION_KB',
+  ACTION_PRD = 'ACTION_PRD',
+  ACTION_EMAIL = 'ACTION_EMAIL',
   INFORMATIONAL = 'INFORMATIONAL',
   UNKNOWN = 'UNKNOWN'
 }
@@ -56,7 +57,7 @@ export interface Task {
 
   // Execution Results
   outputContent?: string; // The generated email, PRD, etc.
-  outputType?: 'EMAIL' | 'PRD' | 'SUMMARY' | 'NONE';
+  outputType?: 'ACTION_EMAIL' | 'ACTION_PRD' | 'ACTION_KB' | 'INFORMATIONAL' | 'NONE';
 }
 
 export interface Metric {

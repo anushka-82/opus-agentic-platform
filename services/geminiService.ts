@@ -38,7 +38,15 @@ export const classifyTaskWithGemini = async (apiKey: string, rawContent: string,
         
         Message: "${rawContent}"
         
-        Classify it into a Type (ACTION_ITEM, QUESTION, INFORMATIONAL), determine Priority, extract key entities, and provide a one-sentence summary.
+        CLASSIFICATION RULES:
+        - ACTION_KB: Use this when the message contains a factual change to how the business, product, or process works. Ask: "If someone didn't know this change happened, would they make a mistake?" (e.g., fee changes, policy changes, technical spec changes, definition changes).
+        - INFORMATIONAL: Use this when the message is a status update, reminder, or shared resource that requires no permanent record. Ask: "Will this information still matter in 30 days?" (e.g., OOO, temporary downtime, meeting reminders, general awareness articles).
+        - ACTION_PRD: Use this if the request is specifically to create a Product Requirement Document or feature specification.
+        - ACTION_EMAIL: Use this if the request requires drafting a professional email response.
+
+        KEY DISTINCTION: "New brand onboarding SLA is 48 hours" is ACTION_KB. "Reminder that the brand review call is at 3pm today" is INFORMATIONAL.
+
+        Classify it into a Type (ACTION_KB, ACTION_PRD, ACTION_EMAIL, INFORMATIONAL), determine Priority, extract key entities, and provide a one-sentence summary.
       `,
       config: {
         responseMimeType: "application/json",
@@ -77,7 +85,7 @@ export const makeDecisionWithGemini = async (apiKey: string, task: Task): Promis
       properties: {
         action: { type: Type.STRING },
         reasoning: { type: Type.STRING },
-        outputType: { type: Type.STRING, enum: ['EMAIL', 'PRD', 'SUMMARY', 'NONE'] }
+        outputType: { type: Type.STRING, enum: ['ACTION_EMAIL', 'ACTION_PRD', 'ACTION_KB', 'INFORMATIONAL', 'NONE'] }
       },
       required: ["action", "reasoning", "outputType"]
     };
@@ -94,10 +102,16 @@ export const makeDecisionWithGemini = async (apiKey: string, task: Task): Promis
         - Sender: ${task.sender}
         - Original Message: "${task.rawContent}"
 
-        Decide the next best action.
-        If it's a request for a document, software feature, or specs, action is 'Generate PRD'.
-        If it requires a reply, action is 'Draft Email'.
-        If it's informational, action is 'Update Knowledge Base'.
+        Decide the next best action and outputType based on these rules:
+        1. If Type is ACTION_KB: outputType is 'ACTION_KB'. Action is 'Update Knowledge Base'.
+        2. If Type is ACTION_PRD: outputType is 'ACTION_PRD'. Action is 'Generate PRD'.
+        3. If Type is ACTION_EMAIL: outputType is 'ACTION_EMAIL'. Action is 'Draft Email'.
+        4. If Type is INFORMATIONAL: outputType is 'INFORMATIONAL'. Action is 'No Action Required'.
+
+        Only write to the knowledge base if the output is explicitly ACTION_KB.
+        If output type is ACTION_PRD: generate PRD only.
+        If output type is ACTION_EMAIL: generate email draft only.
+        If output type is INFORMATIONAL: generate no output, take no action.
       `,
       config: {
         responseMimeType: "application/json",
@@ -127,12 +141,14 @@ export const executeTaskWithGemini = async (apiKey: string, task: Task): Promise
     const ai = getAI(apiKey);
     
     let prompt = "";
-    if (task.outputType === 'PRD') {
+    if (task.outputType === 'ACTION_PRD') {
       prompt = `Generate a structured Product Requirement Document (PRD) in Markdown based on this request: "${task.rawContent}". Include Problem, Goals, User Stories, and Tech Stack.`;
-    } else if (task.outputType === 'EMAIL') {
+    } else if (task.outputType === 'ACTION_EMAIL') {
       prompt = `Draft a professional, concise follow-up email to ${task.sender} regarding: "${task.summary}". Use a helpful tone.`;
+    } else if (task.outputType === 'ACTION_KB') {
+      prompt = `Extract the factual change from this message and format it as a Knowledge Base entry: "${task.rawContent}". Focus on the specific number, policy, or spec that changed.`;
     } else {
-      prompt = `Generate a detailed summary and actionable bullet points for this content: "${task.rawContent}"`;
+      return "No action required for informational updates.";
     }
 
     const response = await ai.models.generateContent({
