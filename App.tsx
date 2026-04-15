@@ -64,6 +64,7 @@ export default function App() {
   const [docSession, setDocSession] = useState<DocumentSession | null>(null);
   const [docChatInput, setDocChatInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
 
   // Theme State
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -537,11 +538,9 @@ export default function App() {
 
 
   // --- DOC ANALYSIS HANDLERS ---
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const processFile = (file: File) => {
     setIsUploading(true);
+    setDocError(null);
     const reader = new FileReader();
     reader.onload = async (e) => {
       const base64Data = (e.target?.result as string).split(',')[1];
@@ -577,6 +576,7 @@ export default function App() {
 
       } catch (err) {
         console.error("Upload failed", err);
+        setDocError(err instanceof Error ? err.message : String(err));
         setDocSession(null);
       } finally {
         setIsUploading(false);
@@ -585,15 +585,41 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    processFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
   const handleDocChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!docChatInput.trim() || !docSession) return;
 
     const userMsg: ChatMessage = { role: 'user', text: docChatInput, timestamp: Date.now() };
-    const updatedHistory = [...docSession.chatHistory, userMsg];
     
-    // Optimistic update
-    setDocSession({ ...docSession, chatHistory: updatedHistory, isAnalyzing: true });
+    // Capture the history snapshot including the new message.
+    // This snapshot is safe because the input is disabled during processing, 
+    // so no other user actions can modify the history in the meantime.
+    const historySnapshot = [...docSession.chatHistory, userMsg];
+
+    // 1. Optimistic Update using the snapshot
+    setDocSession(prev => prev ? { 
+      ...prev, 
+      chatHistory: historySnapshot, 
+      isAnalyzing: true 
+    } : null);
+    
     setDocChatInput('');
 
     try {
@@ -601,7 +627,10 @@ export default function App() {
       let responseText = "";
 
       if (effectiveKey) {
-        responseText = await chatWithDocument(effectiveKey, docSession.fileData, docSession.mimeType, updatedHistory, userMsg.text);
+        // 2. Call API. 
+        // We use docSession.chatHistory (from closure, without the new message) as the 'history' argument
+        // and userMsg.text as the 'question' argument to match the service signature and prompt construction.
+        responseText = await chatWithDocument(effectiveKey, docSession.fileData, docSession.mimeType, docSession.chatHistory, userMsg.text);
       } else {
         await new Promise(r => setTimeout(r, 1000));
         responseText = "I am running in simulation mode because no API Key was provided. Please go to Settings and enter a valid Gemini API Key to enable real analysis.";
@@ -609,13 +638,17 @@ export default function App() {
       
       const botMsg: ChatMessage = { role: 'model', text: responseText, timestamp: Date.now() };
       
+      // 3. Final Update. 
+      // We explicitly use the historySnapshot + botMsg.
+      // This ensures that even if 'prev' was stale or updated unexpectedly, we persist the user message we added earlier.
       setDocSession(prev => prev ? { 
         ...prev, 
-        chatHistory: [...prev.chatHistory, botMsg],
+        chatHistory: [...historySnapshot, botMsg],
         isAnalyzing: false 
       } : null);
     } catch (err) {
       console.error("Chat failed", err);
+      // On error, we just turn off analyzing, we don't revert the user message.
       setDocSession(prev => prev ? { ...prev, isAnalyzing: false } : null);
     }
   };
@@ -954,13 +987,24 @@ export default function App() {
            Upload PDF or Image files to extract insights and ask questions.
          </p>
 
+         {docError && (
+           <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-500 flex items-start gap-2">
+             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+             <span>{docError}</span>
+           </div>
+         )}
+
          {!docSession ? (
-           <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-ops-border rounded-xl bg-ops-card/50 hover:bg-ops-card transition-colors relative">
+           <div 
+             className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-ops-border rounded-xl bg-ops-card/50 hover:bg-ops-card transition-colors relative"
+             onDrop={handleDrop}
+             onDragOver={handleDragOver}
+           >
               <input 
                 type="file" 
                 accept="application/pdf,image/*" 
                 onChange={handleFileUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 disabled={isUploading}
               />
               {isUploading ? (

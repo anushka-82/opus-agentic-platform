@@ -1,5 +1,7 @@
 {
   "name": "OpsPilot",
   "description": "An autonomous multi-agent operations prototype that simulates reading inputs (Slack/Email), classifying tasks, and executing actions like generating PRDs or emails using Gemini 2.0.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "C7": [],
+  "aq": []
 }
