@@ -76,7 +76,7 @@ export const classifyTaskWithGemini = async (apiKey: string, rawContent: string,
 export const makeDecisionWithGemini = async (apiKey: string, task: Task): Promise<{
   action: string;
   reasoning: string;
-  outputType: 'EMAIL' | 'PRD' | 'SUMMARY' | 'NONE';
+  outputType: 'ACTION_EMAIL' | 'ACTION_PRD' | 'ACTION_KB' | 'INFORMATIONAL' | 'NONE';
 }> => {
   try {
     const ai = getAI(apiKey);
