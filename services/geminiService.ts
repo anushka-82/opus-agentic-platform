@@ -31,7 +31,7 @@ export const classifyTaskWithGemini = async (apiKey: string, rawContent: string,
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", 
+      model: "gemini-2.0-flash", 
       contents: `
         You are the 'Task Classifier Agent' for OpsPilot.
         Analyze the following incoming message from ${sender}.
