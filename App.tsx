@@ -57,7 +57,12 @@ export default function App() {
   const [simulationEnabled, setSimulationEnabled] = useState(false);
  
   // Gmail Config State
-  const [gmailClientId, setGmailClientId] = useState(getEnv('GMAIL_CLIENT_ID'));
+  const [gmailClientId, setGmailClientId] = useState(() => {
+    if (getEnv('GMAIL_CLIENT_ID')) return getEnv('GMAIL_CLIENT_ID');
+    const stored = localStorage.getItem('opspilot_gmail_client_id');
+    if (stored) return stored;
+    return '';
+  });
   
   // Document Analysis State
   const [docSession, setDocSession] = useState<DocumentSession | null>(null);
@@ -115,10 +120,11 @@ export default function App() {
 
   // Initialize Google Identity Services whenever Client ID changes
   useEffect(() => {
-    if (typeof google !== 'undefined' && gmailClientId) {
+    const activeClientId = gmailClientId || getEnv('GMAIL_CLIENT_ID');
+    if (typeof google !== 'undefined' && activeClientId) {
       try {
         tokenClient.current = google.accounts.oauth2.initTokenClient({
-          client_id: gmailClientId,
+          client_id: activeClientId,
           scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
           callback: (response: any) => {
             if (response.access_token) {
@@ -268,12 +274,39 @@ export default function App() {
     } else {
       // Check for Real Gmail Auth
       if (id === 'gmail') {
-        if (gmailClientId && tokenClient.current) {
+        const activeClientId = gmailClientId || getEnv('GMAIL_CLIENT_ID');
+        if (!activeClientId) {
+          setActiveTab('settings');
+          alert("Please configure your Gmail Client ID in Settings first.");
+          return;
+        }
+
+        if (typeof google === 'undefined') {
+          alert("Google Identity Services script is still loading. Please try again in a few seconds.");
+          return;
+        }
+
+        if (!tokenClient.current) {
+          try {
+            tokenClient.current = google.accounts.oauth2.initTokenClient({
+              client_id: activeClientId,
+              scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+              callback: (response: any) => {
+                if (response.access_token) {
+                  handleGmailAuthSuccess(response.access_token);
+                }
+              },
+            });
+            console.log("Gmail Auth Client dynamically initialized");
+          } catch (e) {
+            console.error("Failed to initialize Google Auth Client dynamically:", e);
+            alert("Error initializing Google Auth Client: " + String(e));
+            return;
+          }
+        }
+
+        if (tokenClient.current) {
           tokenClient.current.requestAccessToken();
-        } else {
-           // Fallback to warning if no client ID
-           setActiveTab('settings');
-           alert("Please configure your Gmail Client ID in Settings first.");
         }
       } else {
         // Open Auth Modal
@@ -1225,7 +1258,7 @@ export default function App() {
       </p>
 
       {/* WARNING BANNER FOR GMAIL AUTH */}
-      {!gmailClientId && (
+      {!(gmailClientId || getEnv('GMAIL_CLIENT_ID')) && (
         <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-start gap-3">
           <AlertTriangle className="text-yellow-500 shrink-0 mt-0.5" />
           <div>
@@ -1399,13 +1432,17 @@ export default function App() {
                    <input 
                      type="text" 
                      value={gmailClientId}
-                     onChange={(e) => setGmailClientId(e.target.value)}
+                     onChange={(e) => {
+                       const val = e.target.value;
+                       setGmailClientId(val);
+                       localStorage.setItem('opspilot_gmail_client_id', val);
+                     }}
                      className="flex-1 bg-ops-bg border border-ops-border rounded-lg px-3 py-2 text-ops-text font-mono text-sm focus:ring-2 focus:ring-ops-accent outline-none"
                      placeholder="xxxxxxxx-xxxxxxxx.apps.googleusercontent.com"
                    />
-                   {gmailClientId ? (
+                   {gmailClientId || getEnv('GMAIL_CLIENT_ID') ? (
                      <span className="flex items-center gap-1 text-emerald-500 text-sm font-medium px-2">
-                       <Check size={16} /> Configured
+                       <Check size={16} /> {getEnv('GMAIL_CLIENT_ID') && !gmailClientId ? 'Domain Default Active' : 'Configured'}
                      </span>
                    ) : (
                      <span className="flex items-center gap-1 text-yellow-500 text-sm font-medium px-2">
