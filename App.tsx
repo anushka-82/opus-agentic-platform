@@ -126,6 +126,7 @@ export default function App() {
         tokenClient.current = google.accounts.oauth2.initTokenClient({
           client_id: activeClientId,
           scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+          prompt: 'select_account',
           callback: (response: any) => {
             if (response.access_token) {
               handleGmailAuthSuccess(response.access_token);
@@ -291,6 +292,7 @@ export default function App() {
             tokenClient.current = google.accounts.oauth2.initTokenClient({
               client_id: activeClientId,
               scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
+              prompt: 'select_account',
               callback: (response: any) => {
                 if (response.access_token) {
                   handleGmailAuthSuccess(response.access_token);

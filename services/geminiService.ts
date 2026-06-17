@@ -31,7 +31,7 @@ export const classifyTaskWithGemini = async (apiKey: string, rawContent: string,
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", 
+      model: "gemini-3.5-flash", 
       contents: `
         You are the 'Task Classifier Agent' for OpsPilot.
         Analyze the following incoming message from ${sender}.
@@ -91,7 +91,7 @@ export const makeDecisionWithGemini = async (apiKey: string, task: Task): Promis
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", 
+      model: "gemini-3.5-flash", 
       contents: `
         You are the 'Decision Agent'.
         
@@ -152,7 +152,7 @@ export const executeTaskWithGemini = async (apiKey: string, task: Task): Promise
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", 
+      model: "gemini-3.5-flash", 
       contents: prompt,
     });
 
@@ -172,7 +172,7 @@ export const analyzeDocumentWithGemini = async (apiKey: string, base64Data: stri
     const ai = getAI(apiKey);
     
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview", 
+      model: "gemini-3.5-flash", 
       contents: {
         parts: [
           {
@@ -234,7 +234,7 @@ export const chatWithDocument = async (
     parts.push({ text: `User: ${question}\nAssistant:` });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.5-flash",
       contents: { parts }
     });
 
