@@ -31,7 +31,7 @@ export const classifyTaskWithGemini = async (apiKey: string, rawContent: string,
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite", 
+      model: "gemini-3-flash-preview", 
       contents: `
         You are the 'Task Classifier Agent' for OpsPilot.
         Analyze the following incoming message from ${sender}.
@@ -76,7 +76,7 @@ export const classifyTaskWithGemini = async (apiKey: string, rawContent: string,
 export const makeDecisionWithGemini = async (apiKey: string, task: Task): Promise<{
   action: string;
   reasoning: string;
-  outputType: 'ACTION_EMAIL' | 'ACTION_PRD' | 'ACTION_KB' | 'INFORMATIONAL' | 'NONE';
+  outputType: 'EMAIL' | 'PRD' | 'SUMMARY' | 'NONE';
 }> => {
   try {
     const ai = getAI(apiKey);
@@ -91,7 +91,7 @@ export const makeDecisionWithGemini = async (apiKey: string, task: Task): Promis
     };
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite", 
+      model: "gemini-3-flash-preview", 
       contents: `
         You are the 'Decision Agent'.
         
@@ -152,7 +152,7 @@ export const executeTaskWithGemini = async (apiKey: string, task: Task): Promise
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite", 
+      model: "gemini-3-flash-preview", 
       contents: prompt,
     });
 
@@ -172,7 +172,7 @@ export const analyzeDocumentWithGemini = async (apiKey: string, base64Data: stri
     const ai = getAI(apiKey);
     
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite", 
+      model: "gemini-3-flash-preview", 
       contents: {
         parts: [
           {

@@ -8,7 +8,7 @@ import {
 import { 
   classifyTaskWithGemini, makeDecisionWithGemini, executeTaskWithGemini, analyzeDocumentWithGemini, chatWithDocument 
 } from './services/geminiService';
-import { fetchRecentEmails } from './services/gmailService';
+import { fetchRecentEmails, sendEmail } from './services/gmailService';
 import { streamService } from './services/streamService';
 import { Plus, Play, RotateCcw, FileText, Check, Bot, AlertTriangle, Inbox, Sun, Moon, Sliders, Trash2, Link2, MessageSquare, Mail, Wifi, X, Loader2, Sparkles, Upload, FileSearch, Send, Download, Share2, Terminal, Activity, CheckCircle, Eye, EyeOff, Edit2, Save } from 'lucide-react';
 
@@ -32,7 +32,7 @@ const getEnv = (key: string) => {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('inbox');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [tasks, setTasks] = useState<Task[]>([INITIAL_TASK]);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [logs, setLogs] = useState<AgentLog[]>([]);
@@ -41,7 +41,7 @@ export default function App() {
   // Edit Mode State
   const [isEditingOutput, setIsEditingOutput] = useState(false);
   const [editedContent, setEditedContent] = useState('');
-
+ 
   // API Key State (Env + User Override)
   // We initialize from localStorage if available to persist between reloads
   const [userApiKey, setUserApiKey] = useState(() => {
@@ -51,12 +51,11 @@ export default function App() {
     return '';
   });
   const [showApiKey, setShowApiKey] = useState(false);
-
+ 
   // Simulation Control
-  // IMPORTANT: We default to TRUE now so simulated connectors (Slack) work immediately.
-  // The streamService will only emit events if a connector is actually CONNECTED.
-  const [simulationEnabled, setSimulationEnabled] = useState(true);
-
+  // IMPORTANT: Default to false so stream does not endlessly spawn tasks unless toggled.
+  const [simulationEnabled, setSimulationEnabled] = useState(false);
+ 
   // Gmail Config State
   const [gmailClientId, setGmailClientId] = useState(getEnv('GMAIL_CLIENT_ID'));
   
@@ -65,9 +64,9 @@ export default function App() {
   const [docChatInput, setDocChatInput] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [docError, setDocError] = useState<string | null>(null);
-
+ 
   // Theme State
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
   // Integration State
   const [integrations, setIntegrations] = useState<IntegrationConfig[]>([
@@ -120,7 +119,7 @@ export default function App() {
       try {
         tokenClient.current = google.accounts.oauth2.initTokenClient({
           client_id: gmailClientId,
-          scope: 'https://www.googleapis.com/auth/gmail.readonly',
+          scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send',
           callback: (response: any) => {
             if (response.access_token) {
               handleGmailAuthSuccess(response.access_token);
@@ -402,10 +401,33 @@ export default function App() {
     const destination = task.source === 'GMAIL' ? 'Email' : 'Slack';
     addLog(AgentRole.EXECUTION, `Initiating dispatch to ${destination}...`, 'ACTION');
     
-    // Simulate network delay
-    await new Promise(r => setTimeout(r, 1500));
-    
-    addLog(AgentRole.EXECUTION, `Successfully sent content to ${task.sender} via ${destination}`, 'RESULT');
+    try {
+      if (task.source === 'GMAIL') {
+        const gmailIntegration = integrations.find(i => i.id === 'gmail' && i.isConnected);
+        if (gmailIntegration && gmailIntegration.accessToken) {
+          addLog(AgentRole.EXECUTION, `Sending real email to ${task.sender} using Gmail API...`, 'ACTION');
+          
+          // Subject is reply or summary
+          const subject = task.summary ? `Re: ${task.summary}` : `Reply from OpsPilot`;
+          
+          // Call the real sendEmail service!
+          const result = await sendEmail(gmailIntegration.accessToken, task.sender, subject, task.outputContent);
+          
+          addLog(AgentRole.EXECUTION, `Successfully sent real email to ${task.sender} (Message ID: ${result.id})`, 'RESULT');
+          return;
+        } else {
+          addLog(AgentRole.EXECUTION, `Gmail Integration not authenticated. Falling back to simulated dispatch.`, 'THINKING');
+        }
+      }
+      
+      // Simulate network delay for Slack or fallback simulation
+      await new Promise(r => setTimeout(r, 1500));
+      addLog(AgentRole.EXECUTION, `Successfully sent content to ${task.sender} via ${destination} (Simulated)`, 'RESULT');
+    } catch (err: any) {
+      console.error("Dispatch Error:", err);
+      addLog(AgentRole.EXECUTION, `Failed to dispatch to ${destination}: ${err.message || err}`, 'RESULT');
+      alert(`Dispatch failed: ${err.message || err}`);
+    }
   };
 
   const handleStartEdit = (task: Task) => {

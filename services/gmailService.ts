@@ -72,3 +72,52 @@ export const fetchRecentEmails = async (accessToken: string, maxResults = 8): Pr
     throw error;
   }
 };
+
+// Send a new email using the Gmail API
+export const sendEmail = async (
+  accessToken: string,
+  to: string,
+  subject: string,
+  bodyText: string
+): Promise<{ id: string }> => {
+  try {
+    // Extract actual email address from "Name <email@domain>" format if needed
+    const recipient = to.match(/<([^>]+)>/)?.[1] || to;
+    
+    // Construct HTML MIME message
+    const str = [
+      `To: ${recipient}`,
+      'Content-Type: text/html; charset=utf-8',
+      'MIME-Version: 1.0',
+      `Subject: ${subject}`,
+      '',
+      bodyText
+    ].join('\r\n');
+
+    // Base64url encode with support for multi-byte/unicode chars
+    const base64 = btoa(unescape(encodeURIComponent(str)));
+    const raw = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    const response = await fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ raw })
+      }
+    );
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gmail API Send Error: ${response.status} ${response.statusText} - ${errText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Gmail Send Email Error:", error);
+    throw error;
+  }
+};
